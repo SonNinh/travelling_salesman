@@ -1,4 +1,6 @@
 import sys
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Node(object):
@@ -27,6 +29,13 @@ def main(ls_of_cities):
 
 
 if __name__ == "__main__":
+    N = 50
+    x = np.random.rand(N)
+    y = np.random.rand(N)
+    print(x)
+
+    plt.scatter(x, y)
+    plt.show()
     with open(sys.argv[1]) as f:
         ls_of_cities = f.readlines()
         f.close()
