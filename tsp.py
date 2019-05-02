@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     plt.scatter(x, y)
     plt.show()
-    with open(sys.argv[1]) as f:
-        ls_of_cities = f.readlines()
-        f.close()
-        main(ls_of_cities)
+    # with open(sys.argv[1]) as f:
+    #     ls_of_cities = f.readlines()
+    #     f.close()
+    #     main(ls_of_cities)
