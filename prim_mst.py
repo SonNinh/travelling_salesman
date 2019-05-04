@@ -1,5 +1,7 @@
 from math import sqrt
 import sys
+from matplotlib import pyplot
+from mpl_toolkits.mplot3d import Axes3D
 
 
 def get_distance(node_a, node_b):
@@ -34,6 +36,7 @@ def main(ls_of_cities):
     ls_of_nodes = []
     for city in ls_of_cities:
         ls_of_nodes.append(list(map(float, city[:-1].split(', ')[1:])))
+    
     # g = Graph(len(ls_of_nodes), ls_of_nodes)
     # print(ls_of_nodes)
     g = Graph(4, ls_of_nodes)
