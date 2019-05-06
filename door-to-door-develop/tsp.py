@@ -2,6 +2,8 @@
 from argparse import ArgumentParser
 from time import time
 from math import sqrt
+import tsp
+from plot import plot
 
 
 def take_argument():
@@ -55,8 +57,7 @@ def calculate_cost(path):
     """
     cost = 0
     for i, _ in enumerate(path[1:], 1):
-        temp_cost = euclidean_distance(path[i].position, path[i-1].position)
-        cost += temp_cost
+        cost += euclidean_distance(path[i].position, path[i-1].position)
     return cost
 
 
@@ -66,21 +67,33 @@ def print_result(result):
     @param result : include roads passing through the cities and length of roads passing through the cities
     @return None
     """
+    # points = []
+    # path = range(0,74)
+    # print(result[0][73].position)
+    # print(result[0][73].idx)
+    # for afd in result[0]:
+    #     points.append(afd.position[::-1])
+
+    
+
     print(result[0][0].name, end=' ')
     for city in result[0][1:]:
         print('->', end=' ')
         print(city.name, end=' ')
     print()
+    print('city : ', len(result[0]))
     print('Cost : ', result[1])
 
+    # plot(points, path)
 
 class Node:
     """
     Class contain name of cities and position of its
     """
-    def __init__(self, name, position):
+    def __init__(self, name, position, idx):
         self.name = name
         self.position = position
+        self.idx = idx
 
 
 class Graph:
@@ -95,9 +108,9 @@ class Graph:
         node_list = []
         try:
             with open(self.file_name) as file_cities:
-                for city in file_cities.readlines():
+                for idx, city in enumerate(file_cities.readlines()):
                     city = city.split(', ')
-                    node_list.append(Node(city[0], [float(city[1]), float(city[2])]))
+                    node_list.append(Node(city[0], [float(city[1]), float(city[2])], idx))
             return node_list
         except Exception:
             print('Invalid file')
@@ -123,11 +136,13 @@ class nearest_n_ip(Graph):
         cost = 0
         for index, _ in enumerate(self.node_list[1:], 1):
             min_distance = euclidean_distance(self.node_list[index-1].position, self.node_list[index].position)
+            min_index = index
             for temp_index, _ in enumerate(self.node_list[index+1:], index+1):
                 temp_min_distance = euclidean_distance(self.node_list[index-1].position, self.node_list[temp_index].position)
                 if min_distance > temp_min_distance:
                     min_distance = temp_min_distance
-                    swap_content(self.node_list[index], self.node_list[temp_index])
+                    min_index = temp_index
+            swap_content(self.node_list[index], self.node_list[min_index])
             cost += min_distance
         return self.node_list, cost
 
@@ -137,18 +152,17 @@ class nearest_n(Graph):
         Graph.__init__(self, file_name)
 
     def find_shortest_path(self):
-        min_node = self.node_list.pop(0)
-        path = [min_node]
+        path = [self.node_list.pop(0)]
         cost = 0
 
         while self.node_list:
-            temp = []
-
-            for node in self.node_list:
-                distance = euclidean_distance(min_node.position, node.position)
-                temp.append((node, distance))
-
-            min_node, min_cost = min(temp, key=lambda i: i[1])
+            min_cost = euclidean_distance(path[-1].position, self.node_list[0].position)
+            min_node = self.node_list[0]
+            for node in self.node_list[1:]:
+                distance = euclidean_distance(path[-1].position, node.position)
+                if min_cost > distance:
+                    min_cost = distance
+                    min_node = node
             cost += min_cost
             path.append(min_node)
             self.node_list.remove(min_node)
@@ -162,9 +176,10 @@ class nearest_i_abr(Graph):
         self.tours = self.Initialization()
 
     def find_shortest_path(self):
+        cost = euclidean_distance(self.tours[0].position, self.tours[1].position)
         while self.node_list:
             min_cost = calculate_edge(self.tours[0], self.tours[1], self.node_list[0])
-            position_insert = 1
+            position_insert = 0
             for index, _ in enumerate(self.tours[2:], 2):
                 temp_cost = calculate_edge(self.tours[index-1], self.tours[index], self.node_list[0])
                 if min_cost > temp_cost:
@@ -172,7 +187,8 @@ class nearest_i_abr(Graph):
                     position_insert = index
             else:
                 self.tours.insert(position_insert, self.node_list.pop(0))
-        return self.tours, calculate_cost(self.tours)
+                cost += min_cost
+        return self.tours, cost
 
 
 class nearest_i(Graph):
@@ -182,13 +198,17 @@ class nearest_i(Graph):
 
     def find_shortest_path(self):
         while self.node_list:
-            min_distance = euclidean_distance(self.tours[-1].position, self.node_list[0].position)
+            min_distance = float('inf')
             position_min = 0
-            for index, _ in enumerate(self.node_list[1:], 1):
-                temp_min_distance = euclidean_distance(self.tours[-1].position, self.node_list[index].position)
-                if min_distance > temp_min_distance:
-                    min_distance = temp_min_distance
-                    position_min = index
+
+            for index, _ in enumerate(self.node_list):
+                temp_cost = 0
+                for city in self.tours:
+                    temp_cost += euclidean_distance(city.position, self.node_list[index].position)
+                else:
+                    if min_distance > temp_cost:
+                        min_distance = temp_cost
+                        position_min = index
 
             min_cost = calculate_edge(self.tours[0], self.tours[1], self.node_list[position_min])
             position_insert = 1
@@ -200,6 +220,23 @@ class nearest_i(Graph):
             else:
                 self.tours.insert(position_insert, self.node_list.pop(position_min))
         return self.tours, calculate_cost(self.tours)
+    
+
+class heu(Graph):
+    def __init__(self, file_name):
+        Graph.__init__(self, file_name)
+        self.tours = self.Initialization()
+    
+    def find_shortest_path(self):
+        while self.node_list:
+            for index, _ in enumerate(self.tours[1:], 1):
+                temp_cost = euclidean_distance(self.tours[index-1].position, self.tours[index].position)
+                if temp_cost > euclidean_distance(self.tours[index-1].position, self.node_list[0].position):
+                    self.tours.insert(index, self.node_list.pop(0))
+                    break
+            else:
+                self.tours.append(self.node_list.pop(0))
+        return self.tours, calculate_cost(self.tours)
         
 
 def main():
@@ -208,7 +245,8 @@ def main():
         'nearest_i':nearest_i,
         'nearest_i_abr':nearest_i_abr,
         'nearest_n':nearest_n,
-        'nearest_n_ip':nearest_n_ip
+        'nearest_n_ip':nearest_n_ip,
+        'heu':heu
     }
     args = take_argument()
     if args.algo in algorithm:
