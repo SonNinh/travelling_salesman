@@ -16,6 +16,17 @@ def find_start_node(start_node, sorted_x):
             return i
         
 
+def get_inc(sorted_x):
+    min_inc = maxsize
+    # try:
+    for each in range(0, len(sorted_x)-1):
+        inc = abs(sorted_x[each+1][0] - sorted_x[each][0])
+        if min_inc > inc:
+            min_inc = inc
+
+    return inc
+
+
 def main(ls_of_cities):
     # fig = pyplot.figure()
     # ax = Axes3D(fig)
@@ -39,31 +50,38 @@ def main(ls_of_cities):
     # pyplot.show()
     # print(ls_of_nodes[:10])
     sorted_x = sorted(ls_of_nodes,key=lambda l:l[0])
-    # sorted_y = sorted(ls_of_nodes,key=lambda l:l[1])
+    sorted_y = sorted(ls_of_nodes,key=lambda l:l[1])
     # print(sorted_x[:100])
     # print(sorted_y[:100])
     print('data-prepared time:', time()-start)
     start = time()
     cur_city = 0
-    x_id = find_start_node(cur_city, sorted_x)
+    pivot = find_start_node(cur_city, sorted_x)
+    inc_x = get_inc(sorted_x)
+    inc_y = get_inc(sorted_y)
+    if inc_x < inc_y:
+        inc = inc_x
+    else:
+        inc = inc_y
+    print('inc:', inc)
+    
     while True:
-        # print(x_id, y_id)
-        delta = 8.0
+        # print(pivot, y_id)
+        delta = 0.0
         ls_of_common = set()
 
-        x_ref = sorted_x[x_id][0]
+        x_ref = sorted_x[pivot][0]
         # y_ref = sorted_y[y_id][1]
-        y_ref = sorted_x[x_id][1]
+        y_ref = sorted_x[pivot][1]
         # print('x,y:', x_ref,y_ref)
+
+        
         while not ls_of_common:
-            delta += 0.1
+            delta += inc
             ls_x = []
-            # ls_y = []
             buffer_x = []
-            # buffer_y = []
 
-
-            for i in range(x_id+1, len(sorted_x)):
+            for i in range(pivot+1, len(sorted_x)):
                 if sorted_x[i][0] <= x_ref + delta:
                     if sorted_x[i][1] <= y_ref + delta and sorted_x[i][1] >= y_ref - delta:
                         ls_x.append(sorted_x[i][2])
@@ -71,30 +89,17 @@ def main(ls_of_cities):
                 else:
                     break
 
-            for i in range(x_id-1, -1, -1):
+            for i in range(pivot-1, -1, -1):
                 if sorted_x[i][0] >= x_ref - delta:
                     if sorted_x[i][1] <= y_ref + delta and sorted_x[i][1] >= y_ref - delta:
                         ls_x.append(sorted_x[i][2])
                         buffer_x.append(i)
                 else:
                     break
-            
-            # for i in range(y_id+1, len(sorted_y)):
-            #     if sorted_y[i][1] <= y_ref + delta:
-            #         ls_y.append(sorted_y[i][2])
-            #         buffer_y.append(i)
-            #     else:
-            #         break
 
-            # for i in range(y_id-1, -1, -1):
-            #     if sorted_y[i][1] >= y_ref - delta:
-            #         ls_y.append(sorted_y[i][2])
-            #         buffer_y.append(i)
-            #     else:
-            #         break
+    
 
-            # ls_of_common = find_common(ls_x, ls_y)
-            ls_of_common = ls_x
+            ls_of_common = ls_x.copy()
         # print(ls_of_common)
         min_dist = maxsize
         min_id = None
@@ -110,23 +115,19 @@ def main(ls_of_cities):
             path.append(min_id)
             # print(ls_of_cities[min_id])
             # print(delta)
-            sorted_x.pop(x_id)
+            sorted_x.pop(pivot)
             # sorted_y.pop(y_id)
             cur_city = min_id
 
-            new_x_id = buffer_x[ls_x.index(min_id)]
+            new_pivot = buffer_x[ls_x.index(min_id)]
             # new_y_id = buffer_y[ls_y.index(min_id)]
 
-            if new_x_id > x_id:
-                new_x_id -= 1
-                # print("a")
-            # if new_y_id > y_id:
-            #     new_y_id -= 1
-                # print("b")
+            if new_pivot > pivot:
+                new_pivot -= 1
 
-            # x_id, y_id = new_x_id, new_y_id
-            x_id = new_x_id
-            # print("xy_id:", x_id, y_id)
+            # pivot, y_id = new_pivot, new_y_id
+            pivot = new_pivot
+            # print("xy_id:", pivot, y_id)
             # print(len(path))
             if len(path) == vetex-1:
                 print("cost:", cost)
@@ -135,7 +136,7 @@ def main(ls_of_cities):
             break
     
     print('time:', time()-start)
-    plot(points, path)
+    # plot(points, path)
     
 
 
