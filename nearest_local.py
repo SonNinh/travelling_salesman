@@ -1,148 +1,245 @@
-import sys
 from time import time
-import matplotlib.pyplot as plt
+from argparse import ArgumentParser
 from math import sqrt
 from sys import maxsize
-from plot import plot
 
 
-def get_dist(pa, pb):
-    return sqrt((pa[0]-pb[0])**2 + (pa[1]-pb[1])**2)
+class Node(object):
+    def __init__(self, info, idx):
+        city_params = info.strip('\n').split(', ')
+        self.name = city_params[0]
+        self.x = float(city_params[1])
+        self.y = float(city_params[2])
+        self.idx = idx
 
 
-def find_start_node(start_node, sorted_x):
-    for i, c in enumerate(sorted_x):
-        if start_node == c[2]:
-            return i
+class Graph(object):
+    def __init__(self, ls_of_cities):
+        self.ls_of_nodes = []
+        self._create_nodes(ls_of_cities)
+        self.vetex = len(ls_of_cities)
+
+    def _create_nodes(self, ls_of_cities):
+        for idx, city in enumerate(ls_of_cities):
+            self.ls_of_nodes.append(Node(city, idx))
         
+class nearest_local(object):
+    '''
+    Nearest neighbor algorithm using bounding box heuristic
+    '''
+    def __init__(self, graph):
+        # total cost
+        self.cost = 0
+        # final path represented by nodes's index in data file
+        self.path = [0]
+        # current nodes's index in data file
+        self.cur_city = 0
+        # graph object
+        self.graph = graph
+        # list of nodes sorted by x
+        self.sorted_x = sorted(graph.ls_of_nodes,key=lambda l:l.x)
+        # list of nodes sorted by y
+        self.sorted_y = sorted(graph.ls_of_nodes,key=lambda l:l.y)
+        # current nodes's index in sorted_x 
+        self.pivot = self._find_start_node(self.cur_city, self.sorted_x)
 
-def get_inc(sorted_x):
-    min_inc = maxsize
-    # try:
-    for each in range(0, len(sorted_x)-1):
-        inc = abs(sorted_x[each+1][0] - sorted_x[each][0])
-        if min_inc > inc:
-            min_inc = inc
-
-    return inc
-
-
-def main(ls_of_cities):
-    # fig = pyplot.figure()
-    # ax = Axes3D(fig)
-    vetex = len(ls_of_cities)
-    cost = 0
-    start = time()
-    path = []
-    ls_of_nodes = []
-    points = []
-
-    for idx, city in enumerate(ls_of_cities):
-        each = list(map(float, city[:-1].split(', ')[1:]))
-        points.append(each[::-1])
-        each.append(idx)
-        ls_of_nodes.append(each)
+    def solve(self):
         
-        # ls_of_nodes[-1].append(idx)
+        # find appropriate increment of bouding box
+        inc = min(self._get_inc(self.sorted_x), self._get_inc(self.sorted_y))
+
+
+        while True:
+            x_ref = self.sorted_x[self.pivot].x
+            y_ref = self.sorted_x[self.pivot].y
+
+            ls_of_locals, buffer = self._find_local_nodes(inc, x_ref, y_ref)
+            min_id = self._find_nearest(ls_of_locals)
+
+            self._update_param(min_id, buffer, ls_of_locals)
+            if len(self.path) == self.graph.vetex:
+                break
+        
+        return self.path, self.cost
     
-    # for node in ls_of_nodes:
-    #     pyplot.scatter(node[1], node[0], c='red')
-    # pyplot.show()
-    # print(ls_of_nodes[:10])
-    sorted_x = sorted(ls_of_nodes,key=lambda l:l[0])
-    sorted_y = sorted(ls_of_nodes,key=lambda l:l[1])
-    # print(sorted_x[:100])
-    # print(sorted_y[:100])
-    print('data-prepared time:', time()-start)
-    start = time()
-    cur_city = 0
-    pivot = find_start_node(cur_city, sorted_x)
-    inc_x = get_inc(sorted_x)
-    inc_y = get_inc(sorted_y)
-    if inc_x < inc_y:
-        inc = inc_x
-    else:
-        inc = inc_y
-    print('inc:', inc)
-    
-    while True:
-        # print(pivot, y_id)
+    def _find_start_node(self, start_node, sorted_ls):
+        '''
+        find start node's index in sorted list by datafile index 'start_node'
+        @param:
+            start_node: start node's index in data file
+            sorted_ls: sorted list
+        
+        @return:
+            index of start node in sorted list
+        '''
+        for i, node in enumerate(sorted_ls):
+            if start_node == node.idx:
+                return i
+
+    def _get_inc(self, sorted_ls):
+        '''
+        find minimum increment of each pair of nodes
+        @param: 
+            sorted_ls: list of objects Node sorted by particular property
+        @return:
+            inc: minimum increment
+        '''
+        min_inc = maxsize
+        for i in range(0, len(sorted_ls)-1):
+            inc = abs(sorted_ls[i+1].x - sorted_ls[i].x)
+            if min_inc > inc:
+                min_inc = inc
+        return inc
+
+    def _find_local_nodes(self, inc, x_ref, y_ref):
+        '''
+        Find all nodes in bounding box
+        @param:
+            inc: bounding box's increment
+            x_ref, y_ref: location of current nodes
+        @return:
+            ls_of_locals: list of all nodes's index in bounding box (index in dataset)
+            buffer: list of all nodes's index in bounding box (index in sorted_x)
+        '''
+        ls_of_locals = []
+        buffer = []
         delta = 0.0
-        ls_of_common = set()
 
-        x_ref = sorted_x[pivot][0]
-        # y_ref = sorted_y[y_id][1]
-        y_ref = sorted_x[pivot][1]
-        # print('x,y:', x_ref,y_ref)
-
-        
-        while not ls_of_common:
+        while not ls_of_locals:
             delta += inc
-            ls_x = []
-            buffer_x = []
+            ls_of_locals = []
+            buffer = []
 
-            for i in range(pivot+1, len(sorted_x)):
-                if sorted_x[i][0] <= x_ref + delta:
-                    if sorted_x[i][1] <= y_ref + delta and sorted_x[i][1] >= y_ref - delta:
-                        ls_x.append(sorted_x[i][2])
-                        buffer_x.append(i)
+            # check nodes from current node to right side
+            for i in range(self.pivot+1, len(self.sorted_x)):
+                # check if node is in bounding box by x direction
+                if self.sorted_x[i].x <= x_ref + delta:
+                    # check if node is in bounding box by y direction
+                    if self._in_vertical_bound(self.sorted_x[i], y_ref, delta):
+                        ls_of_locals.append(self.sorted_x[i].idx)
+                        buffer.append(i)
+                else:
+                    break
+            # check nodes from current node to left side
+            for i in range(self.pivot-1, -1, -1):
+                # check if node is in bounding box by x direction
+                if self.sorted_x[i].x >= x_ref - delta:
+                    # check if node is in bounding box by y direction
+                    if self._in_vertical_bound(self.sorted_x[i], y_ref, delta):
+                        ls_of_locals.append(self.sorted_x[i].idx)
+                        buffer.append(i)
                 else:
                     break
 
-            for i in range(pivot-1, -1, -1):
-                if sorted_x[i][0] >= x_ref - delta:
-                    if sorted_x[i][1] <= y_ref + delta and sorted_x[i][1] >= y_ref - delta:
-                        ls_x.append(sorted_x[i][2])
-                        buffer_x.append(i)
-                else:
-                    break
+        return ls_of_locals, buffer
 
-    
-
-            ls_of_common = ls_x.copy()
-        # print(ls_of_common)
+    def _find_nearest(self, ls_of_locals):
+        '''
+        Find the nearest node out of the list of local nodes
+        @param:
+            ls_of_locals: list of local nodes
+        @return:
+            min_id: index of the nearest node
+        '''
         min_dist = maxsize
         min_id = None
         
-        for city_id in ls_of_common:
-            dist = get_dist(ls_of_nodes[city_id], ls_of_nodes[cur_city])
+        for city_idx in ls_of_locals:
+            dist = self._get_dist(self.graph.ls_of_nodes[city_idx], self.graph.ls_of_nodes[self.cur_city])
             if dist < min_dist:
                 min_dist = dist
-                min_id = city_id
-        if min_id:
-            cost += min_dist
-            # print("min", min_dist)
-            path.append(min_id)
-            # print(ls_of_cities[min_id])
-            # print(delta)
-            sorted_x.pop(pivot)
-            # sorted_y.pop(y_id)
-            cur_city = min_id
+                min_id = city_idx
 
-            new_pivot = buffer_x[ls_x.index(min_id)]
-            # new_y_id = buffer_y[ls_y.index(min_id)]
+        self.cost += min_dist
+        return min_id
 
-            if new_pivot > pivot:
-                new_pivot -= 1
+    def _update_param(self, min_id, buffer, ls_of_locals):
+        '''
+        Update algorithm's parameter
+        @param:
+            min_id: index of the nearest node
+            buffer: list of all nodes's index in bounding box (index in sorted_x)
+            ls_of_locals: list of local nodes
+        '''
+        self.path.append(min_id)
+        self.sorted_x.pop(self.pivot)
+        self.cur_city = min_id
 
-            # pivot, y_id = new_pivot, new_y_id
-            pivot = new_pivot
-            # print("xy_id:", pivot, y_id)
-            # print(len(path))
-            if len(path) == vetex-1:
-                print("cost:", cost)
-                break
-        else:
-            break
+        new_pivot = buffer[ls_of_locals.index(min_id)]
+
+        if new_pivot > self.pivot:
+            # current node is in left of nearest node, then minus new_pivot by 1
+            new_pivot -= 1
+
+        self.pivot = new_pivot
+
+    def _get_dist(self, node_a, node_b):
+        '''
+        Find distance from node_a to node_b
+        @param:
+            node_a, node_b: Node objects
+        '''
+        return sqrt((node_a.x-node_b.x)**2 + (node_a.y-node_b.y)**2)
+
+    def _in_vertical_bound(self, node, y_ref, delta):
+        '''
+        check if node is in bounding box by y direction
+        @param:
+            node: particular node
+            y_ref: y coordination of node
+            delta: half of bounding box's edge
+        @return:
+            Boolean
+        '''
+        return node.y <= y_ref + delta and node.y >= y_ref - delta
+
+
+def draw_path(path, ls_of_nodes):
+    '''
+    draw complete path using matplotlib
+    @param:
+        ls_of_nodes: list of all nodes
+    '''
+    from plot import plot
+    plot(ls_of_nodes, path)
+
+
+def print_result(path, ls_of_nodes, cost, total_time):
+    '''
+    Print complete path by format A -> B -> C -> ...
+    '''
+    print('Path:')
+    print(ls_of_nodes[0].name, end='')
+    for idx in path[1:]:
+        print(' -> ', end='')
+        print(ls_of_nodes[idx].name, end='')
+    print('\n\nCost:', cost)
+    print('Time:', total_time, '\n')
+
+
+def main(ls_of_cities, args):
+    start = time()
+
+    graph = Graph(ls_of_cities)
+    NN_local = nearest_local(graph)
+
+    total_time = time() - start
+    path, cost = NN_local.solve()
     
-    print('time:', time()-start)
-    # plot(points, path)
-    
+    print_result(path, graph.ls_of_nodes, cost, total_time)
+
+    if args.gui:
+        draw_path(path, graph.ls_of_nodes)
 
 
 if __name__ == "__main__":
-    with open(sys.argv[1]) as f:
+    parser = ArgumentParser()
+    parser.add_argument('file', help='file name containning name and position of cities')
+    # parser.add_argument("--algo", type=str, default="bubble",
+    #                     help="algorithm")
+    parser.add_argument("--gui", action="store_true",
+                        help="GUI mode")
+    args = parser.parse_args()
+    with open(args.file) as f:
         ls_of_cities = f.readlines()
-        main(ls_of_cities)
-        # for city in result:
-        #     print(ls_of_cities[city][:-1])
+        main(ls_of_cities, args)
